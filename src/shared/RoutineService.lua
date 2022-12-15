@@ -27,6 +27,8 @@ Action ->
 
 ]] --
 
+local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Storage = ReplicatedStorage.Storage
@@ -94,7 +96,7 @@ function RoutineService.ReadAsync(routine, scheduleLength) -- routine: 15 bit bi
 	local connectionB = string.sub(routine, 8, 11)
 	local action = string.sub(routine, 12, 15)
 
-	evalType = tonumber(evalType, 2) % 4 -- Wrapping it
+	evalType = tonumber(evalType, 2) % 3 -- Wrapping it
 	evalType = (evalType == 0 and "continue")
 		or (evalType == 1 and "if")
 		or (evalType == 2 and "else")
@@ -173,6 +175,66 @@ function RoutineService.DisplayScheduleAsync(cell, parent)
 			hubA.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 		end
 	end
+
+	local movingFrame
+	
+	ContextActionService:BindAction("RoutineVisualizationReposition", function(_bindName, state, )
+			if state == Enum.UserInputState.Begin then
+				movingFrame = nil
+				
+				if #routineObjects <= 0 then 
+					ContextActionService:UnbindAction(_bindName) 
+					RunService:UnbindAction(_bindName)
+					return 
+				end
+
+				local mousePosition = UserInputService:GetMouseLocation()
+				
+				for _, info in pairs(connectionObjects) do
+					local object = info[2].Parent
+					local absoluteSize = object.AbsoluteSize
+					local cornerTL = object.AbsolutePosition
+					local cornerBR = cornerTL + absoluteSize
+
+					if (mousePosition.X >= cornerTL.X) and (mousePosition.Y >= cornerTL.Y) then
+						if (mousePosition.X <= cornerBR.X) and (mousePosition.Y <= cornerBR.Y) then
+							movingFrame = object
+						end
+					end
+				end
+
+				local frameMouseOffset
+				
+				if movingFrame then
+					frameMouseOffset = mousePosition - movingFrame.AbsolutePosition
+				else
+					return
+				end
+				
+				RunService:BindToRenderStep(_bindName, Enum.RenderPriority.Input.Value + 1, function()
+					if movingFrame then
+						local mousePosition = UserInputService:GetMouseLocation()
+						movingFrame.Position = UDim2.new(0, mousePosition.X + frameMouseOffset.X, 0, mousePosition.Y + frameMouseOffset.Y)
+						
+						for obj, info in pairs(connectionObjects) do
+							local hubA = info[1]
+							
+							if info[2] ~= "D" then
+								local hubB = routineObjects[info[2]].InputHub
+								RoutineService.ConnectFrame(obj, hubA.AbsolutePosition + (hubA.AbsoluteSize / 2), hubB.AbsolutePosition + (hubB.AbsoluteSize / 2), obj.Parent.AbsolutePosition)
+							end
+						end
+					else
+						RunService:UnbindFromRenderStep(_bindName)
+					end
+				end)
+			elseif state == Enum.UserInputState.End then
+				if movingFrame then
+					movingFrame = nil
+					RunService:UnbindFromRenderStep(_bindName)
+				end
+			end
+		end), false, Enum.UserInputType.MouseButton1)
 end
 
 return RoutineService
