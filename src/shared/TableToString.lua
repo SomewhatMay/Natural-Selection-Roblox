@@ -69,11 +69,11 @@ local function TableToString(Table, IgnoredTables, DepthData, Path)
 	DepthData[2] = Path
 
 	IgnoredTables[Table] = DepthData
-	local Tab = string.rep('    ', Depth)
+	local Tab = " " -- string.rep('    ', Depth)
 	local TrailingTab = string.rep('    ', Depth - 1)
-	local Result = '{'
+	local Result = '('
 
-	local LineTab = '\n' .. Tab
+	local LineTab = "" --'\n' .. Tab
 	local HasOrder = true
 	local Index = 1
 
@@ -103,7 +103,7 @@ local function TableToString(Table, IgnoredTables, DepthData, Path)
 		Result = Result .. LineTab .. (HasOrder and Value or Key .. ' = ' .. Value) .. ','
 	end
 
-	return IsEmpty and Result .. '}' or string.sub(Result,  1, -2) .. '\n' .. TrailingTab .. '}'
+	return IsEmpty and Result .. ')' or string.sub(Result,  1, -2) .. TrailingTab .. ')'
 end
 
 function m:TableToString(...)

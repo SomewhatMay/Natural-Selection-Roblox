@@ -135,7 +135,24 @@ function RoutineService.ConnectFrame(frame, pointA, pointB, offset)
 	frame.Rotation = math.deg(rotation)
 end
 
+local _bindName = "RoutineVisualizationReposition"
+local _bindName2 = "RoutinePanning"
+
+function RoutineService.ResetScheduleAsync()
+	ContextActionService:UnbindAction(_bindName)
+	RunService:UnbindFromRenderStep(_bindName)
+end
+
+function RoutineService.HideScheduleAsync(parent)
+	RoutineService.ResetScheduleAsync()
+	parent:ClearAllChildren()
+	parent.Visible = false
+end
+
 function RoutineService.DisplayScheduleAsync(cell, parent)
+	RoutineService.HideScheduleAsync(parent)
+	parent.Visible = true
+	
 	local routineObjects = {}
 	local connectionObjects = {}
 	local scheduleLength = #cell.Schedule
@@ -143,12 +160,13 @@ function RoutineService.DisplayScheduleAsync(cell, parent)
 	for index, routine in pairs(cell.Schedule) do
 		local evalType, connectionA, connectionB, action = RoutineService.ReadAsync(routine, scheduleLength)
 		local definition = ActionService.Dictionary[action + 1]
+		local params = definition[2]
 		
 		local newVis = RoutineVisualizationDemo:Clone()
-		newVis.Name = "Routine_" .. routine
-		newVis.Action.Text = definition[1]
+		newVis.Name = "Routine_" .. routine 
+		newVis.Action.Text = definition[1] .. TableToString:TableToString((params or {}))
 		newVis.EvalType.Text = evalType
-		newVis.Position = UDim2.new(math.random(), 0, math.random(), 0)
+		newVis.Position = UDim2.new(math.random(0, 90) / 100, 0, math.random(0, 90) / 100, 0)
 		newVis.Parent = parent
 		
 		if index == 1 then
@@ -164,77 +182,92 @@ function RoutineService.DisplayScheduleAsync(cell, parent)
 		routineObjects[index] = newVis
 	end
 	
-	for obj, info in pairs(connectionObjects) do
-		local hubA = info[1]
-		
-		if info[2] ~= "D" then
-			local hubB = routineObjects[info[2]].InputHub
-			RoutineService.ConnectFrame(obj, hubA.AbsolutePosition + (hubA.AbsoluteSize / 2), hubB.AbsolutePosition + (hubB.AbsoluteSize / 2), obj.Parent.AbsolutePosition)
-		else
-			hubA.Text = "D"
-			hubA.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	local function updateConnectionObjects(first)
+		for obj, info in pairs(connectionObjects) do
+			local hubA = info[1]
+			
+			if info[2] ~= "D" then
+				local hubB = routineObjects[info[2]].InputHub
+				RoutineService.ConnectFrame(obj, hubA.AbsolutePosition + (hubA.AbsoluteSize / 2), hubB.AbsolutePosition + (hubB.AbsoluteSize / 2), obj.Parent.AbsolutePosition)
+			elseif first then
+				hubA.Text = "D"
+				hubA.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+			end
 		end
 	end
+	
+	updateConnectionObjects(true)
 
 	local movingFrame
 	
-	ContextActionService:BindAction("RoutineVisualizationReposition", function(_bindName, state, )
-			if state == Enum.UserInputState.Begin then
-				movingFrame = nil
-				
-				if #routineObjects <= 0 then 
-					ContextActionService:UnbindAction(_bindName) 
-					RunService:UnbindAction(_bindName)
-					return 
-				end
+	ContextActionService:BindAction(_bindName2, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			local mousePosition = UserInputService:GetMouseLocation()
+			local backgroundOffset = parent.AbsolutePosition - mousePosition
+			
+			RunService:BindToRenderStep(_bindName2, Enum.RenderPriority.Input.Value + 1, function()
+				mousePosition = UserInputService:GetMouseLocation()
+				parent:TweenPosition(UDim2.new(0, mousePosition.X + backgroundOffset.X, 0, mousePosition.Y + backgroundOffset.Y), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 1/5, true)
+			end)
+		elseif state == Enum.UserInputState.End then
+			RunService:UnbindFromRenderStep(_bindName2)
+		end
+	end, false, Enum.UserInputType.MouseButton2)
+	
+	ContextActionService:BindAction(_bindName, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			movingFrame = nil
+			
+			if #routineObjects <= 0 then 
+				ContextActionService:UnbindAction(_bindName) 
+				RunService:UnbindFromRenderStep(_bindName)
+				return 
+			end
 
-				local mousePosition = UserInputService:GetMouseLocation()
-				
-				for _, info in pairs(connectionObjects) do
-					local object = info[2].Parent
-					local absoluteSize = object.AbsoluteSize
-					local cornerTL = object.AbsolutePosition
-					local cornerBR = cornerTL + absoluteSize
+			local mousePosition = UserInputService:GetMouseLocation()
+			
+			for _, info in pairs(connectionObjects) do
+				local object = info[1].Parent
+				local absoluteSize = object.AbsoluteSize
+				local cornerTL = object.AbsolutePosition
+				local cornerBR = cornerTL + absoluteSize
 
-					if (mousePosition.X >= cornerTL.X) and (mousePosition.Y >= cornerTL.Y) then
-						if (mousePosition.X <= cornerBR.X) and (mousePosition.Y <= cornerBR.Y) then
-							movingFrame = object
-						end
+				if (mousePosition.X >= cornerTL.X) and (mousePosition.Y >= cornerTL.Y) then
+					if (mousePosition.X <= cornerBR.X) and (mousePosition.Y <= cornerBR.Y) then
+						movingFrame = object
 					end
-				end
-
-				local frameMouseOffset
-				
-				if movingFrame then
-					frameMouseOffset = mousePosition - movingFrame.AbsolutePosition
-				else
-					return
-				end
-				
-				RunService:BindToRenderStep(_bindName, Enum.RenderPriority.Input.Value + 1, function()
-					if movingFrame then
-						local mousePosition = UserInputService:GetMouseLocation()
-						movingFrame.Position = UDim2.new(0, mousePosition.X + frameMouseOffset.X, 0, mousePosition.Y + frameMouseOffset.Y)
-						
-						for obj, info in pairs(connectionObjects) do
-							local hubA = info[1]
-							
-							if info[2] ~= "D" then
-								local hubB = routineObjects[info[2]].InputHub
-								RoutineService.ConnectFrame(obj, hubA.AbsolutePosition + (hubA.AbsoluteSize / 2), hubB.AbsolutePosition + (hubB.AbsoluteSize / 2), obj.Parent.AbsolutePosition)
-							end
-						end
-					else
-						RunService:UnbindFromRenderStep(_bindName)
-					end
-				end)
-			elseif state == Enum.UserInputState.End then
-				if movingFrame then
-					movingFrame = nil
-					RunService:UnbindFromRenderStep(_bindName)
 				end
 			end
-		end), false, Enum.UserInputType.MouseButton1)
+
+			local frameMouseOffset
+			
+			if movingFrame then
+				frameMouseOffset = movingFrame.AbsolutePosition - mousePosition
+			else
+				return
+			end
+			
+			RunService:BindToRenderStep(_bindName, Enum.RenderPriority.Input.Value + 1, function()
+				if movingFrame then
+					local parentOffset = parent.AbsolutePosition
+					mousePosition = UserInputService:GetMouseLocation()
+					local targetPosition = UDim2.new(0, mousePosition.X + frameMouseOffset.X - parentOffset.X, 0, mousePosition.Y + frameMouseOffset.Y - parentOffset.Y)
+					movingFrame:TweenPosition(targetPosition, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 1/10, true, function()
+						updateConnectionObjects()
+					end)
+					
+					--updateConnectionObjects()
+				else
+					RunService:UnbindFromRenderStep(_bindName)
+				end
+			end)
+		elseif state == Enum.UserInputState.End then
+			if movingFrame then
+				movingFrame = nil
+				RunService:UnbindFromRenderStep(_bindName)
+			end
+		end
+	end, false, Enum.UserInputType.MouseButton1)
 end
 
 return RoutineService

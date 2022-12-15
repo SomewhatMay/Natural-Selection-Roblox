@@ -12,7 +12,7 @@ function cellService:Init()
 	ActionService = require(Common.ActionService)
 end
 
-function cell:Next()
+function cell:Next(printDebug)
 	if self.Dead == true then return end
 	
 	local routineID = self.Schedule[self.Pointer]
@@ -28,17 +28,27 @@ function cell:Next()
 		self.Pointer = newPointer
 	end
 	
-	print(([[
-		- Routine Completed -
-		ID: %s
-		Action: %s
-		Response: %s
-		EvalType: %s
-		ConnectionA: %s
-		ConnectionB: %s
-		NewPointer: %s
-		Dead: %s
-		]]):format(routineID, ActionService.Dictionary[actionNumber + 1][1], tostring(response), evalType, connectionA, connectionB, tostring(newPointer), tostring(self.Dead)))
+	if printDebug then
+		print(([[
+			- Routine Completed -
+			ID: %s
+			Action: %s
+			Response: %s
+			EvalType: %s
+			ConnectionA: %s
+			ConnectionB: %s
+			NewPointer: %s
+			Dead: %s
+			]]):format(routineID, 
+			ActionService.Dictionary[actionNumber + 1][1], 
+			tostring(response), 
+			evalType, 
+			connectionA, 
+			connectionB, 
+			tostring(newPointer), 
+			tostring(self.Dead)
+		))
+	end
 		
 		
 	self:Draw()
@@ -48,10 +58,11 @@ function cell:Draw()
 	self.Object.Position = UDim2.new(0, self.Position.X * 20, 0, self.Position.Y * 20)
 end
 
-function cellService.new(parent, position)
+function cellService.new(parent, ScheduleParent, position)
 	local _position = position or {X = math.random(0, 32), Y = math.random(0, 32)}
 	
-	local frame = Instance.new("Frame")
+	local frame = Instance.new("ImageButton")
+	frame.ImageTransparency = 1
 	frame.Name = "Cell"
 	frame.Parent = parent
 	frame.Size = UDim2.new(0, 20, 0, 20)
@@ -64,9 +75,10 @@ function cellService.new(parent, position)
 		Position = _position;
 		Dead = false;
 		Object = frame;
+		Conections = {};
 	}
 	
-	for i=1, 16, 1 do
+	for i=1, 2, 1 do
 		local randomRoutine = ""
 		
 		for _=1, 15, 1 do
@@ -75,6 +87,10 @@ function cellService.new(parent, position)
 		
 		table.insert(self.Schedule, randomRoutine)
 	end
+	
+	local routineVisualizationConnection = frame.MouseButton1Click:Connect(function()
+		RoutineService.DisplayScheduleAsync(self, ScheduleParent)
+	end)
 	
 	self = setmetatable(self, cell)
 	self:Draw()
