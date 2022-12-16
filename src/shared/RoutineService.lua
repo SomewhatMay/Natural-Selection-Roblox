@@ -199,6 +199,7 @@ function RoutineService.DisplayScheduleAsync(cell, parent)
 	updateConnectionObjects(true)
 
 	local movingFrame
+	parent.Position = UDim2.new(0, 0, 0, 0)
 	
 	ContextActionService:BindAction(_bindName2, function(_, state)
 		if state == Enum.UserInputState.Begin then
